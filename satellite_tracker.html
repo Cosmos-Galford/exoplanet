@@ -468,7 +468,7 @@
     </div>
   </div>
 </div>
-
+  
 <!-- satellite.js from CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.1.4/satellite.min.js"></script>
 
@@ -652,6 +652,11 @@ function showNotifBanner() {
   notifTimeout = setTimeout(() => b.classList.remove('show'), 5000);
 }
 
+<div id="settings-panel">
+    <!-- Existing settings content -->
+    <button onclick="showNotifBanner()">Test Alert Notification</button>
+</div>
+  
 function renderRadar(passes) {
   const dots = passes.map((p, i) => {
     if (!p.pass) return '';
