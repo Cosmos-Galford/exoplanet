@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>OVERWATCH — Satellite Tracker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+  :root {
+    --green: #00ff88;
+    --green-dim: #00ff8844;
+    --green-faint: #00ff8811;
+    --red: #ff3355;
+    --amber: #ffaa00;
+    --bg: #030a05;
+    --grid: #00ff8808;
+    --panel: #050f07;
+    --border: #00ff8822;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Scanline overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  #app {
+    position: relative;
+    z-index: 2;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  /* Header */
+  header {
+    text-align: center;
+    padding: 20px 0 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+
+  .logo {
+    font-family: 'Orbitron', monospace;
+    font-weight: 900;
+    font-size: 28px;
+    letter-spacing: 8px;
+    color: var(--green);
+    text-shadow: 0 0 20px var(--green), 0 0 40px var(--green-dim);
+    animation: flicker 8s infinite;
+  }
+
+  .logo span { color: var(--red); text-shadow: 0 0 20px var(--red); }
+
+  .tagline {
+    font-size: 10px;
+    letter-spacing: 4px;
+    color: #00ff8866;
+    margin-top: 4px;
+  }
+
+  @keyframes flicker {
+    0%,95%,100% { opacity: 1; }
+    96% { opacity: 0.7; }
+    97% { opacity: 1; }
+    98% { opacity: 0.5; }
+    99% { opacity: 1; }
+  }
+
+  /* Status bar */
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    font-size: 11px;
+    margin-bottom: 16px;
+    letter-spacing: 1px;
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    display: inline-block;
+    margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+
+  .status-dot.inactive { background: #333; box-shadow: none; animation: none; }
+  .status-dot.warning { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+  .status-dot.alert { background: var(--red); box-shadow: 0 0 8px var(--red); animation: pulse-fast 0.5s infinite; }
+
+  @keyframes pulse {
+    0%,100% { opacity: 1; } 50% { opacity: 0.3; }
+  }
+  @keyframes pulse-fast {
+    0%,100% { opacity: 1; } 50% { opacity: 0.2; }
+  }
+
+  /* Location panel */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+
+  .panel-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 9px;
+    letter-spacing: 4px;
+    color: #00ff8877;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .loc-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .loc-field label {
+    display: block;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: #00ff8866;
+    margin-bottom: 4px;
+  }
+
+  .loc-field input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px;
+    padding: 8px 10px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .loc-field input:focus {
+    border-color: var(--green);
+    box-shadow: 0 0 8px var(--green-dim);
+  }
+
+  .btn {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--green);
+    color: var(--green);
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    padding: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+
+  .btn:hover, .btn:active {
+    background: var(--green-faint);
+    box-shadow: 0 0 16px var(--green-dim);
+  }
+
+  .btn.secondary {
+    border-color: #00ff8844;
+    color: #00ff8877;
+    font-size: 10px;
+    padding: 8px;
+    margin-top: 8px;
+  }
+
+  .btn.danger { border-color: var(--red); color: var(--red); }
+
+  /* Alert threshold */
+  .threshold-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  /* Satellite list */
+  .sat-item {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+
+  .sat-item::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--green);
+  }
+
+  .sat-item.warning::before { background: var(--amber); }
+  .sat-item.alert::before { background: var(--red); }
+  .sat-item.alert { border-color: #ff335533; animation: alert-glow 1s infinite; }
+
+  @keyframes alert-glow {
+    0%,100% { box-shadow: 0 0 8px #ff335522; }
+    50% { box-shadow: 0 0 20px #ff335544; }
+  }
+
+  .sat-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    color: var(--green);
+  }
+
+  .sat-item.warning .sat-name { color: var(--amber); }
+  .sat-item.alert .sat-name { color: var(--red); }
+
+  .sat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+
+  .sat-stat label {
+    display: block;
+    font-size: 8px;
+    letter-spacing: 2px;
+    color: #00ff8855;
+    margin-bottom: 2px;
+  }
+
+  .sat-stat value {
+    font-size: 13px;
+    display: block;
+  }
+
+  .sat-item.warning .sat-stat value { color: var(--amber); }
+  .sat-item.alert .sat-stat value { color: var(--red); }
+
+  .pass-time {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: #00ff8888;
+  }
+
+  .pass-time strong { color: var(--green); }
+  .sat-item.alert .pass-time strong { color: var(--red); }
+  .sat-item.warning .pass-time strong { color: var(--amber); }
+
+  /* Countdown */
+  .countdown {
+    font-family: 'Orbitron', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    margin-top: 4px;
+  }
+
+  /* No location / loading */
+  .center-msg {
+    text-align: center;
+    padding: 40px 20px;
+    color: #00ff8855;
+    font-size: 12px;
+    letter-spacing: 2px;
+    line-height: 2;
+  }
+
+  .center-msg .big {
+    font-family: 'Orbitron', monospace;
+    font-size: 32px;
+    display: block;
+    margin-bottom: 16px;
+    color: #00ff8833;
+  }
+
+  /* Spinner */
+  .spinner {
+    width: 40px; height: 40px;
+    border: 2px solid var(--border);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 16px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Notification banner */
+  .notif-banner {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    background: var(--red);
+    color: #000;
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-align: center;
+    padding: 12px;
+    z-index: 100;
+    transform: translateY(-100%);
+    transition: transform 0.3s;
+  }
+
+  .notif-banner.show { transform: translateY(0); }
+
+  /* Radar mini-display */
+  .radar-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 16px 0;
+  }
+
+  .radar {
+    width: 160px; height: 160px;
+    border-radius: 50%;
+    border: 1px solid var(--green-dim);
+    position: relative;
+    background: radial-gradient(circle, #00ff8808 0%, transparent 70%);
+    overflow: hidden;
+  }
+
+  .radar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      var(--green-dim) 30deg,
+      transparent 60deg
+    );
+    animation: radar-sweep 3s linear infinite;
+  }
+
+  @keyframes radar-sweep { to { transform: rotate(360deg); } }
+
+  .radar-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .radar-cross {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .radar-cross::before,
+  .radar-cross::after {
+    content: '';
+    position: absolute;
+    background: var(--border);
+  }
+
+  .radar-cross::before { width: 1px; height: 100%; }
+  .radar-cross::after { width: 100%; height: 1px; }
+
+  .radar-dot {
+    position: absolute;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: left 1s, top 1s;
+  }
+
+  .error-msg {
+    color: var(--red);
+    font-size: 11px;
+    margin-top: 6px;
+    letter-spacing: 1px;
+  }
+
+  .last-update {
+    font-size: 9px;
+    color: #00ff8844;
+    letter-spacing: 2px;
+    text-align: center;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div class="notif-banner" id="notifBanner">⚠ SATELLITE OVERPASS IMMINENT</div>
+
+<div id="app">
+  <header>
+    <div class="logo">OVER<span>WATCH</span></div>
+    <div class="tagline">RUSSIAN RECON SATELLITE TRACKER</div>
+  </header>
+
+  <div class="status-bar">
+    <div>
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText">INITIALISING</span>
+    </div>
+    <div id="clockDisplay">--:--:-- UTC</div>
+  </div>
+
+  <div id="mainContent">
+    <div class="center-msg">
+      <div class="spinner"></div>
+      LOADING ORBITAL DATA...
+    </div>
+  </div>
+</div>
+
+<!-- satellite.js from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.1.4/satellite.min.js"></script>
+
+<script>
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
+
+const SATELLITES = [
+  { name: "COSMOS 2486",  norad: 37714 },
+  { name: "COSMOS 2506",  norad: 39486 },
+  { name: "COSMOS 2553",  norad: 49794 },
+  { name: "COSMOS 2558",  norad: 52941 },
+];
+
+// TLE fallbacks (in case fetch fails) — update periodically
+const TLE_FALLBACK = {
+  37714: ["1 37714U 11057A   24090.50000000  .00000050  00000-0  30000-4 0  9993",
+          "2 37714  97.9000  90.0000 0010000  90.0000 270.0000 14.74000000XXXXXX"],
+  39486: ["1 39486U 13070A   24090.50000000  .00000060  00000-0  35000-4 0  9991",
+          "2 39486  97.9000 100.0000 0009000  80.0000 280.0000 14.74000000XXXXXX"],
+  49794: ["1 49794U 21103A   24090.50000000  .00000070  00000-0  40000-4 0  9990",
+          "2 49794  97.6000 110.0000 0008000  70.0000 290.0000 14.74500000XXXXXX"],
+  52941: ["1 52941U 22057A   24090.50000000  .00000080  00000-0  45000-4 0  9992",
+          "2 52941  97.6000 120.0000 0007000  60.0000 300.0000 14.74500000XXXXXX"],
+};
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+
+let userLat = null, userLon = null;
+let alertMinutes = 10;
+let minElevation = 20;
+let satrecs = {};
+let tleData = {};
+let lastNotified = {};
+let updateInterval = null;
+let notifTimeout = null;
+
+// ─── CLOCK ────────────────────────────────────────────────────────────────────
+
+function updateClock() {
+  const now = new Date();
+  const h = now.getUTCHours().toString().padStart(2,'0');
+  const m = now.getUTCMinutes().toString().padStart(2,'0');
+  const s = now.getUTCSeconds().toString().padStart(2,'0');
+  document.getElementById('clockDisplay').textContent = `${h}:${m}:${s} UTC`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ─── TLE FETCH ────────────────────────────────────────────────────────────────
+
+async function fetchTLE(norad) {
+  try {
+    const url = `https://celestrak.org/satcat/tle.php?CATNR=${norad}`;
+    const r = await fetch(url);
+    const txt = await r.text();
+    const lines = txt.trim().split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length >= 3) return { line1: lines[1], line2: lines[2] };
+    if (lines.length === 2) return { line1: lines[0], line2: lines[1] };
+  } catch(e) {}
+  // Fallback
+  if (TLE_FALLBACK[norad]) {
+    return { line1: TLE_FALLBACK[norad][0], line2: TLE_FALLBACK[norad][1] };
+  }
+  return null;
+}
+
+async function loadAllTLEs() {
+  setStatus('warning', 'FETCHING TLE DATA...');
+  let loaded = 0;
+  for (const sat of SATELLITES) {
+    const tle = await fetchTLE(sat.norad);
+    if (tle) {
+      tleData[sat.norad] = tle;
+      try {
+        satrecs[sat.norad] = satellite.twoline2satrec(tle.line1, tle.line2);
+        loaded++;
+      } catch(e) { console.warn('TLE parse error', sat.name, e); }
+    }
+  }
+  return loaded;
+}
+
+// ─── ORBITAL MATH ─────────────────────────────────────────────────────────────
+
+function getSatPosition(satrec, date) {
+  const posVel = satellite.propagate(satrec, date);
+  if (!posVel.position) return null;
+  const gmst = satellite.gstime(date);
+  const geo = satellite.eciToGeodetic(posVel.position, gmst);
+  return {
+    lat: satellite.degreesLat(geo.latitude),
+    lon: satellite.degreesLong(geo.longitude),
+    alt: geo.height,
+  };
+}
+
+function getAzEl(satrec, obsLat, obsLon, obsAlt, date) {
+  const posVel = satellite.propagate(satrec, date);
+  if (!posVel.position) return null;
+  const gmst = satellite.gstime(date);
+  const obsGd = {
+    longitude: satellite.degreesToRadians(obsLon),
+    latitude:  satellite.degreesToRadians(obsLat),
+    height:    obsAlt / 1000,
+  };
+  const lookAngles = satellite.ecfToLookAngles(obsGd, satellite.eciToEcf(posVel.position, gmst));
+  return {
+    azimuth:   satellite.radiansToDegrees(lookAngles.azimuth),
+    elevation: satellite.radiansToDegrees(lookAngles.elevation),
+    rangeSat:  lookAngles.rangeSat,
+  };
+}
+
+function findNextPass(satrec, obsLat, obsLon, obsAlt, minEl, fromDate) {
+  // Step through time to find rise and peak
+  const step = 15; // seconds
+  const maxLook = 24 * 3600; // 24 hours
+  let rising = false;
+  let peakEl = 0, peakTime = null, riseTime = null;
+
+  for (let s = 0; s < maxLook; s += step) {
+    const d = new Date(fromDate.getTime() + s * 1000);
+    const ae = getAzEl(satrec, obsLat, obsLon, obsAlt, d);
+    if (!ae) continue;
+    const el = ae.elevation;
+
+    if (!rising && el > 0) {
+      rising = true;
+      riseTime = d;
+      peakEl = el;
+      peakTime = d;
+    } else if (rising && el > peakEl) {
+      peakEl = el;
+      peakTime = d;
+    } else if (rising && el < 0) {
+      // Pass ended
+      if (peakEl >= minEl) {
+        return { riseTime, peakTime, peakEl };
+      }
+      rising = false;
+      peakEl = 0;
+    }
+  }
+  return null;
+}
+
+// ─── UI ───────────────────────────────────────────────────────────────────────
+
+function setStatus(type, text) {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  dot.className = 'status-dot ' + (type === 'ok' ? '' : type);
+  txt.textContent = text;
+}
+
+function azToCompass(deg) {
+  const dirs = ['N','NE','E','SE','S','SW','W','NW','N'];
+  return dirs[Math.round(deg / 45) % 8];
+}
+
+function formatCountdown(ms) {
+  if (ms < 0) return 'OVERHEAD';
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h ${m.toString().padStart(2,'0')}m`;
+  return `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+}
+
+function getSatClass(msUntil) {
+  if (msUntil < alertMinutes * 60 * 1000) return 'alert';
+  if (msUntil < alertMinutes * 2 * 60 * 1000) return 'warning';
+  return '';
+}
+
+function showNotifBanner() {
+  const b = document.getElementById('notifBanner');
+  b.classList.add('show');
+  clearTimeout(notifTimeout);
+  notifTimeout = setTimeout(() => b.classList.remove('show'), 5000);
+}
+
+function renderRadar(passes) {
+  const dots = passes.map((p, i) => {
+    if (!p.pass) return '';
+    const ae = getAzEl(satrecs[p.norad], userLat, userLon, 0, new Date());
+    if (!ae || ae.elevation < 0) return '';
+    // Map azimuth/elevation to radar coords
+    const r = (1 - ae.elevation / 90) * 70; // % radius
+    const angle = (ae.azimuth - 90) * Math.PI / 180;
+    const x = 50 + r * Math.cos(angle);
+    const y = 50 + r * Math.sin(angle);
+    const colors = ['var(--red)','var(--amber)','var(--green)','var(--green)'];
+    return `<div class="radar-dot" style="left:${x}%;top:${y}%;background:${colors[i] || 'var(--green)'};box-shadow:0 0 6px ${colors[i] || 'var(--green)'}"></div>`;
+  }).join('');
+
+  return `
+    <div class="radar-wrap">
+      <div class="radar">
+        <div class="radar-ring" style="width:33%;height:33%"></div>
+        <div class="radar-ring" style="width:66%;height:66%"></div>
+        <div class="radar-cross"></div>
+        ${dots}
+      </div>
+    </div>`;
+}
+
+function renderSatCards(results) {
+  if (!results.length) return '<div class="center-msg"><span class="big">◉</span>NO PASSES IN NEXT 24H</div>';
+
+  const now = new Date();
+  return results.map(r => {
+    const { name, norad, pass, currentEl } = r;
+    if (!pass) return '';
+    const msUntil = pass.riseTime - now;
+    const cls = getSatClass(msUntil);
+    const countdown = formatCountdown(msUntil);
+    const riseStr = pass.riseTime.toUTCString().split(' ')[4] + ' UTC';
+
+    // Notify if within threshold and not recently notified
+    const key = `${norad}_${pass.riseTime.getTime()}`;
+    if (cls === 'alert' && !lastNotified[key]) {
+      lastNotified[key] = true;
+      showNotifBanner();
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(`⚠ OVERWATCH: ${name} approaching`, {
+          body: `Pass in ${countdown} — Peak elevation ${pass.peakEl.toFixed(0)}°`,
+          icon: ''
+        });
+      }
+    }
+
+    return `
+      <div class="sat-item ${cls}">
+        <div class="sat-name">${name}</div>
+        <div class="sat-grid">
+          <div class="sat-stat">
+            <label>PEAK EL</label>
+            <value>${pass.peakEl.toFixed(1)}°</value>
+          </div>
+          <div class="sat-stat">
+            <label>CURRENT EL</label>
+            <value>${currentEl >= 0 ? currentEl.toFixed(1)+'°' : 'BELOW HORIZON'}</value>
+          </div>
+          <div class="sat-stat">
+            <label>STATUS</label>
+            <value>${cls === 'alert' ? '⚠ ALERT' : cls === 'warning' ? '◈ WATCH' : '◉ CLEAR'}</value>
+          </div>
+        </div>
+        <div class="pass-time">
+          NEXT PASS: <strong>${riseStr}</strong>
+          <div class="countdown">${countdown}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function runUpdate() {
+  if (!userLat || !userLon) return;
+  const now = new Date();
+  const results = [];
+  let anyAlert = false;
+
+  for (const sat of SATELLITES) {
+    if (!satrecs[sat.norad]) continue;
+    const pass = findNextPass(satrecs[sat.norad], userLat, userLon, 0, minElevation, now);
+    const ae = getAzEl(satrecs[sat.norad], userLat, userLon, 0, now);
+    const currentEl = ae ? ae.elevation : -999;
+    if (pass) {
+      results.push({ ...sat, pass, currentEl });
+      if (getSatClass(pass.riseTime - now) === 'alert') anyAlert = true;
+    }
+  }
+
+  results.sort((a, b) => (a.pass?.riseTime || 0) - (b.pass?.riseTime || 0));
+
+  if (anyAlert) setStatus('alert', 'OVERPASS ALERT');
+  else setStatus('ok', 'MONITORING');
+
+  const radarHtml = renderRadar(results);
+  const cards = renderSatCards(results);
+  const ts = `<div class="last-update">LAST UPDATE: ${now.toUTCString().split(' ')[4]} UTC</div>`;
+
+  document.getElementById('mainContent').innerHTML =
+    renderSettingsPanel() + radarHtml + cards + ts;
+}
+
+// ─── SETTINGS ─────────────────────────────────────────────────────────────────
+
+function renderSettingsPanel() {
+  return `
+    <div class="panel">
+      <div class="panel-title">OBSERVER LOCATION</div>
+      <div class="loc-row">
+        <div class="loc-field">
+          <label>LATITUDE</label>
+          <input type="number" id="inputLat" value="${userLat?.toFixed(4) ?? ''}" placeholder="e.g. 51.5074" step="0.0001">
+        </div>
+        <div class="loc-field">
+          <label>LONGITUDE</label>
+          <input type="number" id="inputLon" value="${userLon?.toFixed(4) ?? ''}" placeholder="e.g. -0.1278" step="0.0001">
+        </div>
+      </div>
+      <div class="threshold-row">
+        <div class="loc-field">
+          <label>ALERT (MIN AHEAD)</label>
+          <input type="number" id="inputAlert" value="${alertMinutes}" min="1" max="60">
+        </div>
+        <div class="loc-field">
+          <label>MIN ELEVATION °</label>
+          <input type="number" id="inputElev" value="${minElevation}" min="0" max="90">
+        </div>
+      </div>
+      <button class="btn" onclick="applySettings()" style="margin-top:10px">APPLY SETTINGS</button>
+      <button class="btn secondary" onclick="geoLocate()">◎ USE MY LOCATION</button>
+    </div>`;
+}
+
+function applySettings() {
+  const lat = parseFloat(document.getElementById('inputLat')?.value);
+  const lon = parseFloat(document.getElementById('inputLon')?.value);
+  const al  = parseInt(document.getElementById('inputAlert')?.value);
+  const el  = parseInt(document.getElementById('inputElev')?.value);
+
+  if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    alert('Invalid coordinates'); return;
+  }
+  userLat = lat; userLon = lon;
+  if (!isNaN(al)) alertMinutes = al;
+  if (!isNaN(el)) minElevation = el;
+
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+  runUpdate();
+}
+
+function geoLocate() {
+  if (!navigator.geolocation) { alert('Geolocation not supported'); return; }
+  setStatus('warning', 'ACQUIRING POSITION...');
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      userLat = pos.coords.latitude;
+      userLon = pos.coords.longitude;
+      runUpdate();
+    },
+    err => {
+      setStatus('inactive', 'GEO ERROR');
+      alert('Could not get location: ' + err.message);
+    }
+  );
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+
+async function init() {
+  document.getElementById('mainContent').innerHTML =
+    '<div class="center-msg"><div class="spinner"></div>FETCHING ORBITAL DATA...</div>';
+
+  setStatus('warning', 'LOADING...');
+  const loaded = await loadAllTLEs();
+
+  if (loaded === 0) {
+    setStatus('inactive', 'TLE LOAD FAILED');
+    document.getElementById('mainContent').innerHTML =
+      '<div class="center-msg"><span class="big">✕</span>COULD NOT LOAD TLE DATA<br>CHECK CONNECTION</div>';
+    return;
+  }
+
+  // Show settings panel, waiting for location
+  document.getElementById('mainContent').innerHTML = `
+    ${renderSettingsPanel()}
+    <div class="center-msg" style="padding:20px">
+      ENTER COORDINATES OR TAP<br>"USE MY LOCATION"
+    </div>`;
+
+  setStatus('inactive', `${loaded}/${SATELLITES.length} SATS LOADED`);
+
+  // Auto-update every 30s
+  clearInterval(updateInterval);
+  updateInterval = setInterval(() => { if (userLat) runUpdate(); }, 30000);
+}
+
+init();
+</script>
+</body>
+</html>
